@@ -268,7 +268,6 @@ export default function HomePage() {
           <div style={{ textAlign: "center", padding: "20px 8px" }}>
             <img src="/mochi.png" alt="Mochi" style={{
               width: 80, height: 80, objectFit: "contain",
-              mixBlendMode: "screen",
               filter: "drop-shadow(0 0 12px rgba(255,0,200,0.7))",
               display: "block", margin: "0 auto 12px",
             }} />
@@ -423,7 +422,6 @@ export default function HomePage() {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
             <img src="/mochi.png" alt="Mochi" style={{
               width: 36, height: 36, objectFit: "contain",
-              mixBlendMode: "screen",
               filter: "drop-shadow(0 0 6px rgba(255,0,200,0.6))",
             }} />
             <strong style={{ fontSize: 12 }}>Mochi Hall of Shame</strong>

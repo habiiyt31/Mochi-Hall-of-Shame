@@ -163,7 +163,7 @@ export default function Taskbar({
           <img
             src="/mochi.png"
             alt=""
-            style={{ width: 24, height: 24, objectFit: "contain", mixBlendMode: "screen" }}
+            style={{ width: 24, height: 24, objectFit: "contain"}}
           />
           start
         </button>
@@ -196,7 +196,7 @@ export default function Taskbar({
               <img
                 src="/mochi.png"
                 alt="Mochi"
-                style={{ width: 40, height: 40, objectFit: "contain", mixBlendMode: "screen" }}
+                style={{ width: 40, height: 40, objectFit: "contain" }}
               />
               <div>
                 <div style={{ fontWeight: "bold", fontSize: 13 }}>Mochi Hall of Shame</div>
