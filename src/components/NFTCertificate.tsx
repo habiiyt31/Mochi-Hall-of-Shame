@@ -34,8 +34,7 @@ export default function NFTCertificate({ nft, onClose }: Props) {
     try {
       const blob = await generateNFTImage(nft);
       const text = `Just got roasted on-chain by Mochi!\n\nCringe score: ${score}/100 ${rarity.emoji} ${rarity.label}\n\n"${String(nft.roast_text).slice(0, 100)}..."\n\nBuilt on @GenLayer #MochiHallOfShame #GenLayer`;
-      const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
       const imgUrl = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = imgUrl;
@@ -49,11 +48,8 @@ export default function NFTCertificate({ nft, onClose }: Props) {
 
   async function handleDownload() {
     setGenerating(true);
-    try {
-      await downloadNFTImage(nft);
-    } finally {
-      setGenerating(false);
-    }
+    try { await downloadNFTImage(nft); }
+    finally { setGenerating(false); }
   }
 
   const btn: React.CSSProperties = {
@@ -77,16 +73,17 @@ export default function NFTCertificate({ nft, onClose }: Props) {
 
   return (
     <Win98Window
-      title={`${rarity.emoji} Mochi's Certified L - Token #${tokenId}`}
+      id="certificate"
+      title={`${rarity.emoji} Mochi's Certified L — Token #${tokenId}`}
       defaultPos={{
         x: typeof window !== "undefined" ? Math.max(20, window.innerWidth / 2 - 280) : 100,
         y: 50,
       }}
-      width={560}
+      defaultSize={{ w: 560, h: 580 }}
       onClose={onClose}
       zIndex={9999}
     >
-      <div style={{ padding: "4px 0" }}>
+      <div style={{ height: "100%", display: "flex", flexDirection: "column", gap: 10 }}>
 
         {/* Rarity header */}
         <div style={{
@@ -94,19 +91,17 @@ export default function NFTCertificate({ nft, onClose }: Props) {
           border: `2px solid ${rarity.color}`,
           boxShadow: rarity.glow,
           padding: "10px 14px",
-          marginBottom: 12,
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
           gap: 12,
+          flexShrink: 0,
         }}>
-          {/* Mochi image */}
           <img
             src="/mochi.png"
             alt="Mochi"
             style={{
-              width: 56,
-              height: 56,
+              width: 52, height: 52,
               objectFit: "contain",
               mixBlendMode: "screen",
               filter: "drop-shadow(0 0 10px rgba(255,0,200,0.8))",
@@ -117,7 +112,7 @@ export default function NFTCertificate({ nft, onClose }: Props) {
             <div style={{
               color: rarity.color,
               fontFamily: '"Press Start 2P", monospace',
-              fontSize: 13,
+              fontSize: 12,
               textShadow: `0 0 10px ${rarity.color}`,
               marginBottom: 4,
             }}>
@@ -129,7 +124,7 @@ export default function NFTCertificate({ nft, onClose }: Props) {
           </div>
           <div style={{
             fontFamily: '"Press Start 2P", monospace',
-            fontSize: 22,
+            fontSize: 20,
             color: rarity.color,
             textShadow: `0 0 16px ${rarity.color}`,
             flexShrink: 0,
@@ -142,14 +137,13 @@ export default function NFTCertificate({ nft, onClose }: Props) {
         <div style={{
           border: "2px solid",
           borderColor: "#404040 #fff #fff #404040",
-          marginBottom: 12,
           background: "#000",
-          height: 250,
+          flex: 1,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           overflow: "hidden",
-          position: "relative",
+          minHeight: 200,
         }}>
           {previewUrl ? (
             <img
@@ -159,18 +153,7 @@ export default function NFTCertificate({ nft, onClose }: Props) {
             />
           ) : (
             <div style={{ color: "#666", fontSize: 12, textAlign: "center" }}>
-              <img
-                src="/mochi.png"
-                alt="Mochi"
-                style={{
-                  width: 40,
-                  height: 40,
-                  objectFit: "contain",
-                  mixBlendMode: "screen",
-                  display: "block",
-                  margin: "0 auto 8px",
-                }}
-              />
+              <img src="/mochi.png" alt="" style={{ width: 36, height: 36, objectFit: "contain", mixBlendMode: "screen", display: "block", margin: "0 auto 8px" }} />
               Generating certificate...
             </div>
           )}
@@ -182,18 +165,12 @@ export default function NFTCertificate({ nft, onClose }: Props) {
           border: "2px solid",
           borderColor: "#404040 #fff #fff #404040",
           padding: 10,
-          marginBottom: 12,
           fontSize: 12,
+          flexShrink: 0,
         }}>
-          <div style={{ display: "flex", gap: 16, marginBottom: 8 }}>
-            <div>
-              <span style={{ color: "#666" }}>Owner: </span>
-              <span style={{ fontFamily: "monospace" }}>{ownerShort}</span>
-            </div>
-            <div>
-              <span style={{ color: "#666" }}>Token: </span>
-              <strong>#{tokenId}</strong>
-            </div>
+          <div style={{ display: "flex", gap: 16, marginBottom: 6 }}>
+            <div><span style={{ color: "#666" }}>Owner: </span><span style={{ fontFamily: "monospace" }}>{ownerShort}</span></div>
+            <div><span style={{ color: "#666" }}>Token: </span><strong>#{tokenId}</strong></div>
           </div>
           <div style={{
             borderLeft: `3px solid ${rarity.color}`,
@@ -211,20 +188,18 @@ export default function NFTCertificate({ nft, onClose }: Props) {
         </div>
 
         {/* Buttons */}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", flexShrink: 0 }}>
           <button type="button" onClick={handleShare} style={btnPrimary} disabled={generating}>
             {generating ? "Generating..." : "Share to X + Download PNG"}
           </button>
           <button type="button" onClick={handleDownload} style={btn} disabled={generating}>
             Download PNG
           </button>
-          <button type="button" onClick={onClose} style={btn}>
-            Close
-          </button>
+          <button type="button" onClick={onClose} style={btn}>Close</button>
         </div>
 
-        <div style={{ fontSize: 10, color: "#888", marginTop: 8 }}>
-          PNG will download automatically. Attach it to your X post manually.
+        <div style={{ fontSize: 10, color: "#888", flexShrink: 0 }}>
+          PNG downloads automatically. Attach it to your X post manually.
         </div>
       </div>
     </Win98Window>

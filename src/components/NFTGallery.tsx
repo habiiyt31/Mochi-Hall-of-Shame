@@ -12,6 +12,8 @@ interface Props {
   getNFT: (tokenId: bigint) => Promise<NFTMetadata>;
   getTotalNFTs: () => Promise<bigint>;
   walletAddress: string | null;
+  isMinimized?: boolean;
+  onClose?: () => void;
 }
 
 const RARITY_FILTERS: { label: string; value: Rarity | "all" | "mine" }[] = [
@@ -32,6 +34,8 @@ export default function NFTGallery({
   getNFT,
   getTotalNFTs,
   walletAddress,
+  isMinimized,
+  onClose,
 }: Props) {
   const [nfts, setNfts] = useState<NFTMetadata[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,11 +91,14 @@ export default function NFTGallery({
   return (
     <>
       <Win98Window
+        id="gallery"
         title="NFT Gallery — Mochi's Certified L Collection"
         defaultPos={{ x: 540, y: 400 }}
-        width={520}
+        defaultSize={{ w: 520, h: 460 }}
         zIndex={zIndex}
+        isMinimized={isMinimized}
         onFocus={onFocus}
+        onClose={onClose}
       >
         {/* Filter tabs */}
         <div style={{
@@ -105,8 +112,10 @@ export default function NFTGallery({
             const count = f.value === "all"
               ? nfts.length
               : f.value === "mine"
-              ? nfts.filter((n) => walletAddress && String(n.owner).toLowerCase() === walletAddress.toLowerCase()).length
-              : nfts.filter((n) => getRarity(Number(n.cringe_score), "").rarity === f.value).length;
+              ? nfts.filter((n) => walletAddress &&
+                  String(n.owner).toLowerCase() === walletAddress.toLowerCase()).length
+              : nfts.filter((n) =>
+                  getRarity(Number(n.cringe_score), "").rarity === f.value).length;
 
             if (count === 0 && f.value !== "all" && f.value !== "mine") return null;
 
@@ -122,49 +131,32 @@ export default function NFTGallery({
             );
           })}
           <div style={{ flex: 1 }} />
-          <button
-            type="button"
-            style={btn}
-            onClick={load}
-          >
+          <button type="button" style={btn} onClick={load}>
             {loading ? "..." : "Refresh"}
           </button>
         </div>
 
         {/* Grid */}
         <div style={{
-          maxHeight: 360,
+          height: "calc(100% - 52px)",
           overflowY: "auto",
           border: "2px solid",
           borderColor: "#404040 #fff #fff #404040",
           background: "#111",
           padding: 8,
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fill, minmax(130px, 1fr))",
           gap: 8,
+          alignContent: "start",
         }}>
           {loading && (
-            <div style={{
-              color: "#666",
-              fontSize: 12,
-              padding: 20,
-              textAlign: "center",
-              gridColumn: "1/-1",
-            }}>
+            <div style={{ color: "#666", fontSize: 12, padding: 20, textAlign: "center", gridColumn: "1/-1" }}>
               Loading NFTs...
             </div>
           )}
           {!loading && filtered.length === 0 && (
-            <div style={{
-              color: "#666",
-              fontSize: 12,
-              padding: 20,
-              textAlign: "center",
-              gridColumn: "1/-1",
-            }}>
-              {filter === "mine"
-                ? "You have no NFTs yet."
-                : `No ${filter} NFTs found.`}
+            <div style={{ color: "#666", fontSize: 12, padding: 20, textAlign: "center", gridColumn: "1/-1" }}>
+              {filter === "mine" ? "You have no NFTs yet." : `No ${filter} NFTs found.`}
             </div>
           )}
           {filtered.map((nft, i) => (
@@ -220,47 +212,36 @@ function NFTCard({
         position: "relative",
       }}
     >
-      {/* Mochi image top */}
-      <div style={{ textAlign: "center", marginBottom: 6 }}>
-        <div style={{
-          width: 40,
-          height: 40,
-          margin: "0 auto",
-          position: "relative",
-          overflow: "hidden",
-          borderRadius: "50%",
-          background: "rgba(0,0,0,0.3)",
-        }}>
-          <img
-            src="/mochi.png"
-            alt="Mochi"
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "contain",
-              mixBlendMode: "screen",
-            }}
-          />
-        </div>
+      {/* Mochi image */}
+      <div style={{
+        width: 40, height: 40,
+        margin: "0 auto 6px",
+        background: "#000",
+        borderRadius: "50%",
+        overflow: "hidden",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+      }}>
+        <img
+          src="/mochi.png"
+          alt="Mochi"
+          style={{ width: "100%", height: "100%", objectFit: "contain", mixBlendMode: "screen" }}
+        />
       </div>
 
       {/* YOU badge */}
       {isOwn && (
         <div style={{
-          position: "absolute",
-          top: 4,
-          right: 4,
-          fontSize: 8,
-          color: "#0f0",
-          fontWeight: "bold",
-          background: "rgba(0,0,0,0.5)",
-          padding: "1px 4px",
+          position: "absolute", top: 4, right: 4,
+          fontSize: 8, color: "#0f0", fontWeight: "bold",
+          background: "rgba(0,0,0,0.5)", padding: "1px 4px",
         }}>
           YOU
         </div>
       )}
 
-      {/* Rarity */}
+      {/* Rarity label */}
       <div style={{
         color: rarity.color,
         fontFamily: '"Press Start 2P", monospace',
@@ -275,7 +256,7 @@ function NFTCard({
       {/* Score */}
       <div style={{
         color: rarity.color,
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: "bold",
         fontFamily: '"Press Start 2P", monospace',
         textAlign: "center",
@@ -304,12 +285,7 @@ function NFTCard({
       </div>
 
       {hovered && (
-        <div style={{
-          color: "rgba(255,255,255,0.6)",
-          fontSize: 9,
-          marginTop: 4,
-          textAlign: "center",
-        }}>
+        <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 9, marginTop: 4, textAlign: "center" }}>
           Click to view
         </div>
       )}

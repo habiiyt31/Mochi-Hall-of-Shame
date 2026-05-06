@@ -8,8 +8,8 @@ import {
   type CSSProperties,
 } from "react";
 import Win98Window from "@/components/Win98Window";
+import Taskbar, { type TaskbarWindow } from "@/components/Taskbar";
 import MochiAssistant from "@/components/MochiAssistant";
-import WalletConnect from "@/components/WalletConnect";
 import BackgroundVibe from "@/components/BackgroundVibe";
 import NFTCertificate from "@/components/NFTCertificate";
 import NFTGallery from "@/components/NFTGallery";
@@ -17,15 +17,8 @@ import LoadingDots from "@/components/LoadingDots";
 import Toast, { type ToastItem, type ToastType } from "@/components/Toast";
 import { useWallet } from "@/hooks/useWallet";
 import { useMochiContract } from "@/hooks/useMochiContract";
-import type { RoastEntry, NFTMetadata, MochiMood, Verdict } from "@/types/contract";
-
-const VERDICT_COLOR: Record<Verdict, string> = {
-  NOOB: "#888",
-  MID: "#cc9900",
-  CRINGE: "#ff3366",
-  LEGENDARY_L: "#cc00ff",
-  BASED: "#00ccaa",
-};
+import { getRarity } from "@/lib/rarity";
+import type { RoastEntry, NFTMetadata, MochiMood } from "@/types/contract";
 
 const TIPS = [
   "Skill issue. Just kidding... unless?",
@@ -47,14 +40,6 @@ const EXAMPLES = [
   "I write TODO comments and never come back to them",
 ];
 
-function verdictFromScore(score: number): Verdict {
-  if (score >= 80) return "LEGENDARY_L";
-  if (score >= 60) return "CRINGE";
-  if (score >= 40) return "MID";
-  if (score >= 20) return "NOOB";
-  return "BASED";
-}
-
 const BTN: CSSProperties = {
   padding: "5px 14px",
   background: "#c0c0c0",
@@ -74,14 +59,21 @@ const BTN_PRIMARY: CSSProperties = {
   padding: "6px 18px",
 };
 
-const MOCHI_ICON: CSSProperties = {
+const MOCHI_INLINE: CSSProperties = {
   width: 18,
   height: 18,
   objectFit: "contain",
   mixBlendMode: "screen",
   verticalAlign: "middle",
-  marginRight: 4,
+  flexShrink: 0,
 };
+
+type WinId = "submit" | "hall" | "gallery" | "about";
+
+interface WinState {
+  minimized: boolean;
+  zIndex: number;
+}
 
 export default function HomePage() {
   const wallet = useWallet();
@@ -97,36 +89,58 @@ export default function HomePage() {
   const [text, setText] = useState("");
   const [entries, setEntries] = useState<RoastEntry[]>([]);
   const [topZ, setTopZ] = useState(20);
-  const [wZ, setWZ] = useState({ submit: 13, hall: 12, gallery: 11, about: 10 });
+  const [wins, setWins] = useState<Record<WinId, WinState>>({
+    submit:  { minimized: false, zIndex: 13 },
+    hall:    { minimized: false, zIndex: 12 },
+    gallery: { minimized: false, zIndex: 11 },
+    about:   { minimized: false, zIndex: 10 },
+  });
   const [msg, setMsg] = useState<string | null>(
     "Yo! Connect your wallet and confess your most cringe digital habit."
   );
   const [mood, setMood] = useState<MochiMood>("smug");
   const [mintedNFT, setMintedNFT] = useState<NFTMetadata | null>(null);
   const [toasts, setToasts] = useState<ToastItem[]>([]);
-  const toastIdRef = useRef(0);
+  const toastId = useRef(0);
 
-  const pushToast = useCallback(
-    (type: ToastType, message: string, duration?: number) => {
-      const id = ++toastIdRef.current;
-      setToasts((t) => [...t, { id, type, message, duration }]);
-      return id;
-    },
-    []
-  );
+  const pushToast = useCallback((type: ToastType, message: string, duration?: number) => {
+    const id = ++toastId.current;
+    setToasts((t) => [...t, { id, type, message, duration }]);
+    return id;
+  }, []);
 
   const dismissToast = useCallback((id: number) => {
     setToasts((t) => t.filter((x) => x.id !== id));
   }, []);
 
-  const focusWin = useCallback(
-    (k: keyof typeof wZ) => {
-      setTopZ((z) => z + 1);
-      setWZ((s) => ({ ...s, [k]: topZ + 1 }));
-    },
-    [topZ]
-  );
+  const focusWin = useCallback((id: WinId) => {
+    setTopZ((z) => {
+      const next = z + 1;
+      setWins((s) => ({ ...s, [id]: { minimized: false, zIndex: next } }));
+      return next;
+    });
+  }, []);
 
+  const closeWin = useCallback((id: WinId) => {
+    setWins((s) => ({ ...s, [id]: { ...s[id], minimized: true } }));
+  }, []);
+
+  const handleTaskClick = useCallback((id: string) => {
+    const winId = id as WinId;
+    setWins((s) => {
+      if (s[winId].minimized) {
+        setTopZ((z) => {
+          const next = z + 1;
+          setWins((prev) => ({ ...prev, [winId]: { minimized: false, zIndex: next } }));
+          return next;
+        });
+        return s;
+      }
+      return { ...s, [winId]: { ...s[winId], minimized: true } };
+    });
+  }, []);
+
+  // Read entries — works without wallet (uses readClient)
   const refresh = useCallback(async () => {
     try {
       const r = await getRecentEntries(20);
@@ -157,29 +171,25 @@ export default function HomePage() {
       pushToast("error", "Too short — give Mochi something to work with");
       return;
     }
-
-    const loadingId = pushToast("loading", "Submitting to blockchain... validators are judging you");
+    const lid = pushToast("loading", "Submitting to blockchain... validators are judging you");
     setMood("smug");
     setMsg("Hold up, validators are vibing on your L...");
-    const submittedText = text;
+    const submitted = text;
     setText("");
-
     try {
-      await submitForRoast(submittedText);
-      dismissToast(loadingId);
+      await submitForRoast(submitted);
+      dismissToast(lid);
       pushToast("success", "Roasted! Your shame is now permanent on-chain.", 5000);
       setMood("happy");
-      setMsg("Done. Refresh in a moment to see your roast.");
+      setMsg("Done. Refreshing to show your roast...");
       for (let i = 0; i < 8; i++) {
         await new Promise((r) => setTimeout(r, 3000));
         await refresh();
       }
     } catch (e) {
-      dismissToast(loadingId);
-      const errMsg = e instanceof Error ? e.message : String(e);
-      const isTimeout =
-        errMsg.toLowerCase().includes("timed out") ||
-        errMsg.toLowerCase().includes("timeout");
+      dismissToast(lid);
+      const em = e instanceof Error ? e.message : String(e);
+      const isTimeout = em.toLowerCase().includes("timed out") || em.toLowerCase().includes("timeout");
       if (isTimeout) {
         pushToast("info", "Transaction submitted! Auto-refreshing...", 6000);
         setMood("smug");
@@ -189,92 +199,80 @@ export default function HomePage() {
           await refresh();
         }
       } else {
-        pushToast("error", errMsg.slice(0, 100));
+        pushToast("error", em.slice(0, 100));
         setMood("angry");
-        setMsg("Error: " + errMsg.slice(0, 80));
+        setMsg("Error: " + em.slice(0, 80));
       }
     }
   }
 
   async function handleMint(entryId: bigint) {
-    if (!wallet.connected) {
-      pushToast("error", "Connect wallet to mint");
-      return;
-    }
-    const loadingId = pushToast("loading", "Minting your Mochi's Certified L...");
+    if (!wallet.connected) { pushToast("error", "Connect wallet to mint"); return; }
+    const lid = pushToast("loading", "Minting your Mochi's Certified L...");
     setMsg("Minting your certificate of shame...");
     try {
       await mintCertificate(entryId);
-      dismissToast(loadingId);
+      dismissToast(lid);
       pushToast("success", "NFT minted! Welcome to the Hall of Legends.", 5000);
       setMood("happy");
       setMsg("Certified L. Blockchain remembers forever.");
       await new Promise((r) => setTimeout(r, 2000));
       try {
         const total = await getTotalNFTs();
-        if (total > 0n) {
-          const nft = await getNFT(total - 1n);
-          setMintedNFT(nft);
-        }
+        if (total > 0n) setMintedNFT(await getNFT(total - 1n));
       } catch { /* silent */ }
       await refresh();
     } catch (e) {
-      dismissToast(loadingId);
-      const errMsg = e instanceof Error ? e.message : String(e);
-      const isTimeout =
-        errMsg.toLowerCase().includes("timed out") ||
-        errMsg.toLowerCase().includes("timeout");
+      dismissToast(lid);
+      const em = e instanceof Error ? e.message : String(e);
+      const isTimeout = em.toLowerCase().includes("timed out") || em.toLowerCase().includes("timeout");
       if (isTimeout) {
         pushToast("info", "Mint submitted! Checking in a moment...", 5000);
         setTimeout(async () => {
           try {
             const total = await getTotalNFTs();
-            if (total > 0n) {
-              const nft = await getNFT(total - 1n);
-              setMintedNFT(nft);
-            }
+            if (total > 0n) setMintedNFT(await getNFT(total - 1n));
             await refresh();
           } catch { /* silent */ }
         }, 8000);
       } else {
-        pushToast("error", "Mint failed: " + errMsg.slice(0, 80));
+        pushToast("error", "Mint failed: " + em.slice(0, 80));
         setMood("angry");
       }
     }
   }
 
-  function fillExample() {
-    setText(EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)]);
-  }
+  const taskbarWins: TaskbarWindow[] = [
+    { id: "submit",  title: "Submit Your L",  minimized: wins.submit.minimized,  active: wins.submit.zIndex  === topZ },
+    { id: "hall",    title: "Hall of Shame",  minimized: wins.hall.minimized,    active: wins.hall.zIndex    === topZ },
+    { id: "gallery", title: "NFT Gallery",    minimized: wins.gallery.minimized, active: wins.gallery.zIndex === topZ },
+    { id: "about",   title: "About",          minimized: wins.about.minimized,   active: wins.about.zIndex   === topZ },
+  ];
 
   return (
-    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", paddingTop: 36 }}>
+    <div style={{ minHeight: "100vh", position: "relative", overflow: "hidden", paddingBottom: 40 }}>
       <BackgroundVibe />
-      <WalletConnect wallet={wallet} />
 
-      {/* ── Submit Window ── */}
+      {/* Submit — shows connect screen if no wallet, form if connected */}
       <Win98Window
-        title="Submit Your L — Mochi Hall of Shame"
-        defaultPos={{ x: 30, y: 50 }}
-        width={440}
-        zIndex={wZ.submit}
+        id="submit"
+        title="Submit Your L"
+        defaultPos={{ x: 30, y: 40 }}
+        defaultSize={{ w: 440, h: 420 }}
+        zIndex={wins.submit.zIndex}
+        isMinimized={wins.submit.minimized}
         onFocus={() => focusWin("submit")}
+        onClose={() => closeWin("submit")}
       >
         {!wallet.connected ? (
-          <div style={{ textAlign: "center", padding: "24px 8px" }}>
-            <img
-              src="/mochi.png"
-              alt="Mochi"
-              style={{
-                width: 80,
-                height: 80,
-                objectFit: "contain",
-                filter: "drop-shadow(0 0 12px rgba(255,0,200,0.7))",
-                display: "block",
-                margin: "0 auto 12px",
-              }}
-            />
-            <p style={{ fontSize: 13, marginBottom: 6, fontWeight: "bold" }}>
+          <div style={{ textAlign: "center", padding: "20px 8px" }}>
+            <img src="/mochi.png" alt="Mochi" style={{
+              width: 80, height: 80, objectFit: "contain",
+              mixBlendMode: "screen",
+              filter: "drop-shadow(0 0 12px rgba(255,0,200,0.7))",
+              display: "block", margin: "0 auto 12px",
+            }} />
+            <p style={{ fontSize: 13, fontWeight: "bold", marginBottom: 6 }}>
               Welcome to Mochi Hall of Shame
             </p>
             <p style={{ fontSize: 12, color: "#444", marginBottom: 16, lineHeight: 1.5 }}>
@@ -293,23 +291,13 @@ export default function HomePage() {
               Confess a weird digital habit or cringe tech opinion.
               Mochi will roast you on-chain via GenLayer AI validators.
             </p>
-            <div style={{
-              background: "#fff",
-              border: "2px solid",
-              borderColor: "#404040 #fff #fff #404040",
-              padding: "6px 10px",
-              marginBottom: 10,
-              fontSize: 11,
-              color: "#444",
-            }}>
-              Score 75+ = Mint NFT &nbsp;|&nbsp; Score 95+ = LEGENDARY
+            <div style={{ background: "#fff", border: "2px solid", borderColor: "#404040 #fff #fff #404040", padding: "6px 10px", marginBottom: 10, fontSize: 11, color: "#444" }}>
+              Any score = Mint NFT &nbsp;|&nbsp; Score 95+ = LEGENDARY
             </div>
-            <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-              <button
-                type="button"
-                onClick={fillExample}
-                style={{ ...BTN, fontSize: 11, padding: "3px 10px" }}
-              >
+            <div style={{ marginBottom: 8 }}>
+              <button type="button"
+                onClick={() => setText(EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)])}
+                style={{ ...BTN, fontSize: 11, padding: "3px 10px" }}>
                 Random example
               </button>
             </div>
@@ -321,35 +309,18 @@ export default function HomePage() {
               maxLength={400}
               disabled={loading}
               style={{
-                width: "100%",
-                boxSizing: "border-box",
-                padding: 8,
-                border: "2px solid",
+                width: "100%", boxSizing: "border-box",
+                padding: 8, border: "2px solid",
                 borderColor: "#404040 #fff #fff #404040",
                 background: loading ? "#eee" : "#fff",
-                fontFamily: "inherit",
-                fontSize: 13,
-                resize: "vertical",
-                minHeight: 90,
+                fontFamily: "inherit", fontSize: 13,
+                resize: "vertical", minHeight: 90,
               }}
             />
-            <div style={{
-              marginTop: 10,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}>
+            <div style={{ marginTop: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <span style={{ fontSize: 11, color: "#666" }}>{text.length} / 400</span>
-              <button
-                type="button"
-                onClick={handleSubmit}
-                disabled={loading}
-                style={{
-                  ...BTN_PRIMARY,
-                  opacity: loading ? 0.7 : 1,
-                  cursor: loading ? "wait" : "pointer",
-                }}
-              >
+              <button type="button" onClick={handleSubmit} disabled={loading}
+                style={{ ...BTN_PRIMARY, opacity: loading ? 0.7 : 1, cursor: loading ? "wait" : "pointer" }}>
                 {loading ? <LoadingDots text="Roasting" /> : "Get Roasted →"}
               </button>
             </div>
@@ -357,13 +328,16 @@ export default function HomePage() {
         )}
       </Win98Window>
 
-      {/* ── Hall of Shame ── */}
+      {/* Hall of Shame — visible without wallet */}
       <Win98Window
-        title="Hall of Shame — Permanent Record"
-        defaultPos={{ x: 500, y: 50 }}
-        width={500}
-        zIndex={wZ.hall}
+        id="hall"
+        title="Hall of Shame"
+        defaultPos={{ x: 500, y: 40 }}
+        defaultSize={{ w: 500, h: 520 }}
+        zIndex={wins.hall.zIndex}
+        isMinimized={wins.hall.minimized}
         onFocus={() => focusWin("hall")}
+        onClose={() => closeWin("hall")}
       >
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
           <span style={{ fontSize: 12 }}>
@@ -371,95 +345,43 @@ export default function HomePage() {
           </span>
           <button type="button" onClick={refresh} style={BTN}>Refresh</button>
         </div>
-        <div style={{
-          maxHeight: 400,
-          overflowY: "auto",
-          border: "2px solid",
-          borderColor: "#404040 #fff #fff #404040",
-          background: "#fff",
-        }}>
+        <div style={{ height: "calc(100% - 44px)", overflowY: "auto", border: "2px solid", borderColor: "#404040 #fff #fff #404040", background: "#fff" }}>
           {entries.length === 0 && (
             <div style={{ padding: 28, textAlign: "center", color: "#666", fontSize: 13 }}>
-              <div style={{ marginBottom: 8, opacity: 0.5 }}>
-                <img
-                  src="/mochi.png"
-                  alt=""
-                  style={{ width: 40, height: 40, objectFit: "contain", mixBlendMode: "screen" }}
-                />
-              </div>
+              <img src="/mochi.png" alt="" style={{ width: 40, height: 40, objectFit: "contain", mixBlendMode: "screen", display: "block", margin: "0 auto 8px" }} />
               No entries yet. Be the first to get roasted.
             </div>
           )}
           {entries.map((entry, i) => {
             const score = Number(entry.cringe_score);
-            const verdict = verdictFromScore(score);
+            const rarity = getRarity(score, "");
             const entryId = BigInt(entries.length - 1 - i);
-            const isOwn =
-              wallet.address &&
+            const isOwn = wallet.address &&
               entry.player.toLowerCase() === wallet.address.toLowerCase();
             return (
-              <div
-                key={i}
-                style={{
-                  padding: 12,
-                  borderBottom: "1px solid #ddd",
-                  fontSize: 12,
-                  background: isOwn ? "#f0f8ff" : "transparent",
-                }}
-              >
+              <div key={i} style={{ padding: 12, borderBottom: "1px solid #ddd", fontSize: 12, background: isOwn ? "#f0f8ff" : "transparent" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
                   <div style={{ fontStyle: "italic", color: "#555", flex: 1 }}>
                     &ldquo;{entry.submission}&rdquo;
                   </div>
-                  {isOwn && (
-                    <span style={{ fontSize: 9, color: "#0a0", fontWeight: "bold", flexShrink: 0 }}>
-                      YOU
-                    </span>
-                  )}
+                  {isOwn && <span style={{ fontSize: 9, color: "#0a0", fontWeight: "bold" }}>YOU</span>}
                 </div>
-                <div style={{
-                  marginTop: 8,
-                  padding: 10,
-                  background: "#fffbe0",
-                  borderLeft: "4px solid #cc00ff",
-                  fontFamily: '"Comic Sans MS", cursive',
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                  display: "flex",
-                  alignItems: "flex-start",
-                  gap: 6,
-                }}>
-                  <img src="/mochi.png" alt="" style={MOCHI_ICON} />
+                <div style={{ marginTop: 8, padding: 10, background: "#fffbe0", borderLeft: `4px solid ${rarity.color}`, fontFamily: '"Comic Sans MS",cursive', fontSize: 12, lineHeight: 1.5, display: "flex", alignItems: "flex-start", gap: 6 }}>
+                  <img src="/mochi.png" alt="" style={MOCHI_INLINE} />
                   <span>{entry.roast}</span>
                 </div>
-                <div style={{
-                  marginTop: 8,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 6,
-                }}>
+                <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 6 }}>
                   <div>
-                    <span style={{
-                      padding: "2px 8px",
-                      background: VERDICT_COLOR[verdict],
-                      color: "#fff",
-                      fontSize: 10,
-                      fontWeight: "bold",
-                    }}>
-                      {verdict}
+                    <span style={{ padding: "2px 8px", background: rarity.color, color: "#fff", fontSize: 10, fontWeight: "bold" }}>
+                      {rarity.emoji} {rarity.label}
                     </span>
                     <span style={{ marginLeft: 8, fontSize: 11 }}>
                       Cringe: <strong>{score}/100</strong>
                     </span>
                   </div>
-                  {isOwn && !entry.minted && score >= 75 && (
-                    <button
-                      type="button"
-                      onClick={() => handleMint(entryId)}
-                      style={BTN_PRIMARY}
-                    >
+                  {/* Mint button — show for own entries not yet minted, any score */}
+                  {isOwn && !entry.minted && (
+                    <button type="button" onClick={() => handleMint(entryId)} style={BTN_PRIMARY}>
                       Mint Certified L
                     </button>
                   )}
@@ -475,62 +397,57 @@ export default function HomePage() {
         </div>
       </Win98Window>
 
-      {/* ── NFT Gallery ── */}
+      {/* NFT Gallery — visible without wallet */}
       <NFTGallery
-        zIndex={wZ.gallery}
+        zIndex={wins.gallery.zIndex}
         onFocus={() => focusWin("gallery")}
         getNFT={getNFT}
         getTotalNFTs={getTotalNFTs}
         walletAddress={wallet.address}
+        isMinimized={wins.gallery.minimized}
+        onClose={() => closeWin("gallery")}
       />
 
-      {/* ── About ── */}
+      {/* About */}
       <Win98Window
+        id="about"
         title="About"
         defaultPos={{ x: 30, y: 490 }}
-        width={280}
-        zIndex={wZ.about}
+        defaultSize={{ w: 300, h: 220 }}
+        zIndex={wins.about.zIndex}
+        isMinimized={wins.about.minimized}
         onFocus={() => focusWin("about")}
+        onClose={() => closeWin("about")}
       >
         <div style={{ fontSize: 11, lineHeight: 1.8 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-            <img
-              src="/mochi.png"
-              alt="Mochi"
-              style={{
-                width: 36,
-                height: 36,
-                objectFit: "contain",
-                filter: "drop-shadow(0 0 6px rgba(255,0,200,0.6))",
-              }}
-            />
+            <img src="/mochi.png" alt="Mochi" style={{
+              width: 36, height: 36, objectFit: "contain",
+              mixBlendMode: "screen",
+              filter: "drop-shadow(0 0 6px rgba(255,0,200,0.6))",
+            }} />
             <strong style={{ fontSize: 12 }}>Mochi Hall of Shame</strong>
           </div>
           <p style={{ margin: "0 0 8px" }}>
             On-chain meme game on{" "}
-            <a href="https://genlayer.com" target="_blank" rel="noreferrer">
-              GenLayer
-            </a>
-            . AI validators judge your cringe level.
+            <a href="https://genlayer.com" target="_blank" rel="noreferrer">GenLayer</a>.
+            AI validators judge your cringe level.
           </p>
           <ul style={{ paddingLeft: 16, margin: 0 }}>
             <li>Submit confession</li>
             <li>AI roasts you on-chain</li>
-            <li>Score 75+ = mint NFT</li>
+            <li>Any score = mint NFT</li>
             <li>Click Mochi for wisdom</li>
           </ul>
         </div>
       </Win98Window>
 
-      {/* ── NFT Certificate Modal ── */}
+      {/* NFT Certificate Modal */}
       {mintedNFT && (
-        <NFTCertificate
-          nft={mintedNFT}
-          onClose={() => setMintedNFT(null)}
-        />
+        <NFTCertificate nft={mintedNFT} onClose={() => setMintedNFT(null)} />
       )}
 
-      {/* ── Mochi Assistant ── */}
+      {/* Mochi Assistant */}
       <MochiAssistant
         message={msg}
         mood={mood}
@@ -541,7 +458,17 @@ export default function HomePage() {
         }}
       />
 
-      {/* ── Toasts ── */}
+      {/* Taskbar */}
+      <Taskbar
+        windows={taskbarWins}
+        onClickTask={handleTaskClick}
+        walletAddress={wallet.address}
+        onConnect={wallet.connect}
+        onDisconnect={wallet.disconnect}
+        connecting={wallet.connecting}
+      />
+
+      {/* Toasts */}
       <Toast toasts={toasts} onDismiss={dismissToast} />
     </div>
   );
