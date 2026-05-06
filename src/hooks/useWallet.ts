@@ -56,7 +56,7 @@ export function useWallet() {
     try {
       await eth.request({
         method: "wallet_switchEthereumChain",
-        params: [{ chainId: "0xF22F" }],
+        params: [{ chainId: "0xf21f" }],
       });
     } catch (switchError: any) {
       if (switchError.code === 4902) {
@@ -64,12 +64,12 @@ export function useWallet() {
           await eth.request({
             method: "wallet_addEthereumChain",
             params: [{
-              chainId: "0xF22F",
-              chainName: "GenLayer Studio",
-              nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
-              rpcUrls: ["https://studio.genlayer.com/api"],
-              blockExplorerUrls: [],
-            }],
+            chainId: "0xf21f",
+            chainName: "GenLayer Studionet",
+            nativeCurrency: { name: "GEN", symbol: "GEN", decimals: 18 },
+            rpcUrls: ["https://studio.genlayer.com/api"],
+            blockExplorerUrls: ["https://explorer-studio.genlayer.com"],
+          }],
           });
         } catch { /* user tolak */ }
       }
