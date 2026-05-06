@@ -10,4 +10,72 @@ html,
 body {
   height: 100%;
   font-family: "Pixelify Sans", "MS Sans Serif", sans-serif;
+  overflow: hidden;
+}
+
+/* Win98-style scrollbar */
+::-webkit-scrollbar {
+  width: 16px;
+  height: 16px;
+}
+::-webkit-scrollbar-track {
+  background: #c0c0c0;
+}
+::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  border: 2px solid;
+  border-color: #fff #404040 #404040 #fff;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d4;
+}
+
+/* Smooth transitions */
+button {
+  transition: background 0.1s, transform 0.05s;
+}
+button:active {
+  transform: translate(1px, 1px);
+}
+
+/* Prevent text selection while dragging */
+.dragging * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Animations */
+@keyframes float {
+  0%, 100% { transform: translateY(0px) rotate(-1deg); }
+  50% { transform: translateY(-8px) rotate(1deg); }
+}
+
+@keyframes shimmer {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
+@keyframes gridMove {
+  0% { background-position: 0 0; }
+  100% { background-position: 40px 40px; }
+}
+
+@keyframes drift {
+  0% { transform: translate(0, 0); }
+  100% { transform: translate(-100px, -100px); }
 }

@@ -249,7 +249,7 @@ class MochiHallOfShame(gl.Contract):
         token_id = self.nft_supply
         self.nft_supply = u256(int(token_id) + 1)
         nft = NFTMetadata(
-            "Sertifikat Lulus TK Digital",
+            "Mochi's Certified L",
             entry.roast,
             entry.cringe_score,
             entry.player,

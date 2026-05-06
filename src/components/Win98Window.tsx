@@ -4,6 +4,7 @@ import {
   useState,
   useRef,
   useEffect,
+  useCallback,
   type ReactNode,
   type PointerEvent as RPointerEvent,
 } from "react";
@@ -30,41 +31,104 @@ export default function Win98Window({
   const [pos, setPos] = useState(defaultPos);
   const [dragging, setDragging] = useState(false);
   const [minimized, setMinimized] = useState(false);
+  const [viewport, setViewport] = useState({ w: 0, h: 0 });
+
   const offset = useRef({ x: 0, y: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const rafId = useRef<number | null>(null);
 
+  // ✅ Handle viewport safely (SSR-safe)
   useEffect(() => {
-    const clamp = () =>
-      setPos((p) => ({
-        x: Math.min(p.x, window.innerWidth - 100),
-        y: Math.min(p.y, window.innerHeight - 50),
-      }));
-    window.addEventListener("resize", clamp);
-    return () => window.removeEventListener("resize", clamp);
+    const update = () => {
+      setViewport({
+        w: window.innerWidth,
+        h: window.innerHeight,
+      });
+    };
+
+    update(); // initial
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
   }, []);
+
+  // ✅ Clamp helper biar window nggak keluar layar
+  const clamp = useCallback(
+    (x: number, y: number) => {
+      const maxX = viewport.w ? viewport.w - 100 : x;
+      const maxY = viewport.h ? viewport.h - 50 : y;
+
+      return {
+        x: Math.max(0, Math.min(x, maxX)),
+        y: Math.max(0, Math.min(y, maxY)),
+      };
+    },
+    [viewport]
+  );
+
+  // ✅ Smooth drag pakai RAF
+  const onMove = useCallback(
+    (e: RPointerEvent<HTMLDivElement>) => {
+      if (!dragging) return;
+
+      const nextX = e.clientX - offset.current.x;
+      const nextY = e.clientY - offset.current.y;
+
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+
+      rafId.current = requestAnimationFrame(() => {
+        setPos(clamp(nextX, nextY));
+      });
+    },
+    [dragging, clamp]
+  );
 
   function onDown(e: RPointerEvent<HTMLDivElement>) {
     onFocus?.();
+
     const t = e.target as HTMLElement;
     if (!t.closest("[data-titlebar]") || t.closest("[data-btn]")) return;
-    setDragging(true);
-    const rect = ref.current!.getBoundingClientRect();
-    offset.current = { x: e.clientX - rect.left, y: e.clientY - rect.top };
-    e.currentTarget.setPointerCapture(e.pointerId);
-  }
 
-  function onMove(e: RPointerEvent<HTMLDivElement>) {
-    if (!dragging) return;
-    setPos({ x: e.clientX - offset.current.x, y: e.clientY - offset.current.y });
+    setDragging(true);
+    document.body.classList.add("dragging");
+
+    const rect = ref.current!.getBoundingClientRect();
+    offset.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+
+    e.currentTarget.setPointerCapture(e.pointerId);
   }
 
   function onUp(e: RPointerEvent<HTMLDivElement>) {
     setDragging(false);
-    try { e.currentTarget.releasePointerCapture(e.pointerId); } catch { /* noop */ }
+    document.body.classList.remove("dragging");
+
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+
+    try {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    } catch {}
   }
 
+  // cleanup
+  useEffect(() => {
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+      document.body.classList.remove("dragging");
+    };
+  }, []);
+
+  // ✅ Width aman (no window access langsung)
+  const computedWidth =
+    viewport.w > 0 ? Math.min(width, viewport.w - 20) : width;
+
   const btn: React.CSSProperties = {
-    width: 18, height: 16,
+    width: 18,
+    height: 16,
     background: "#c0c0c0",
     border: "1px solid",
     borderColor: "#fff #404040 #404040 #fff",
@@ -87,40 +151,69 @@ export default function Win98Window({
         position: "fixed",
         left: pos.x,
         top: pos.y,
-        width,
+        width: computedWidth,
+        maxWidth: "calc(100vw - 20px)", // fallback CSS
         zIndex,
-        userSelect: dragging ? "none" : "auto",
         background: "#c0c0c0",
         border: "2px solid",
         borderColor: "#fff #404040 #404040 #fff",
-        boxShadow: "1px 1px 0 #000",
+        boxShadow: dragging
+          ? "4px 4px 0 rgba(0,0,0,0.3)"
+          : "2px 2px 0 rgba(0,0,0,0.2)",
         fontFamily: '"MS Sans Serif", "Pixelify Sans", sans-serif',
+        animation: "slideUp 0.3s ease-out",
+        willChange: dragging ? "left, top" : "auto",
       }}
     >
-      {/* Title bar */}
+      {/* Title Bar */}
       <div
         data-titlebar
         style={{
           background: "linear-gradient(90deg,#000080,#1084d0)",
           color: "#fff",
-          padding: "3px 4px",
+          padding: "4px 6px",
           display: "flex",
-          alignItems: "center",
           justifyContent: "space-between",
+          alignItems: "center",
           cursor: dragging ? "grabbing" : "grab",
           fontWeight: "bold",
           fontSize: 12,
+          touchAction: "none",
         }}
       >
-        <span style={{ paddingLeft: 4 }}>{title}</span>
+        <span style={{ paddingLeft: 4, userSelect: "none" }}>
+          {title}
+        </span>
+
         <div style={{ display: "flex", gap: 2 }}>
-          <button data-btn type="button" style={btn} onClick={() => setMinimized((m) => !m)}>_</button>
-          {onClose && <button data-btn type="button" style={btn} onClick={onClose}>x</button>}
+          <button
+            data-btn
+            style={btn}
+            onClick={() => setMinimized((m) => !m)}
+          >
+            {minimized ? "□" : "_"}
+          </button>
+
+          {onClose && (
+            <button data-btn style={btn} onClick={onClose}>
+              x
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Content */}
       {!minimized && (
-        <div style={{ padding: 12, color: "#000" }}>{children}</div>
+        <div
+          style={{
+            padding: 12,
+            maxHeight: "calc(100vh - 100px)",
+            overflowY: "auto",
+            color: "#000",
+          }}
+        >
+          {children}
+        </div>
       )}
     </div>
   );

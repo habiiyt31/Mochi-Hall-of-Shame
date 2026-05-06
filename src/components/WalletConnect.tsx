@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import type { WalletState } from "@/hooks/useWallet";
 
 interface Props {
@@ -17,11 +18,23 @@ const btn: React.CSSProperties = {
   cursor: "pointer",
 };
 
-/**
- * Win98-style wallet connect bar shown at the top of the app.
- * Works with MetaMask, Rabby, Coinbase Wallet, or any EIP-1193 browser wallet.
- */
 export default function WalletConnect({ wallet }: Props) {
+  const [time, setTime] = useState("");
+
+  useEffect(() => {
+    function update() {
+      const d = new Date();
+      setTime(
+        `${String(d.getHours()).padStart(2, "0")}:${String(
+          d.getMinutes()
+        ).padStart(2, "0")}`
+      );
+    }
+    update();
+    const id = setInterval(update, 30000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
     <div
       style={{
@@ -39,9 +52,9 @@ export default function WalletConnect({ wallet }: Props) {
         gap: 12,
         fontFamily: '"MS Sans Serif","Pixelify Sans",sans-serif',
         fontSize: 12,
+        boxShadow: "0 2px 0 rgba(0,0,0,0.2)",
       }}
     >
-      {/* Taskbar left: logo */}
       <span style={{ fontWeight: "bold", fontSize: 13 }}>
         Mochi Hall of Shame
       </span>
@@ -49,12 +62,13 @@ export default function WalletConnect({ wallet }: Props) {
       <div style={{ flex: 1 }} />
 
       {wallet.error && (
-        <span style={{ color: "#c00", fontSize: 11 }}>{wallet.error}</span>
+        <span style={{ color: "#c00", fontSize: 11, maxWidth: 240 }}>
+          {wallet.error}
+        </span>
       )}
 
       {wallet.connected && wallet.address ? (
         <>
-          {/* Green LED */}
           <span
             style={{
               display: "inline-block",
@@ -62,10 +76,20 @@ export default function WalletConnect({ wallet }: Props) {
               height: 8,
               borderRadius: "50%",
               background: "#0a0",
-              boxShadow: "0 0 4px #0a0",
+              boxShadow: "0 0 6px #0a0",
+              animation: "pulse 2s ease-in-out infinite",
             }}
           />
-          <span style={{ fontFamily: "monospace", fontSize: 11 }}>
+          <span
+            style={{
+              fontFamily: "monospace",
+              fontSize: 11,
+              padding: "2px 6px",
+              background: "#fff",
+              border: "1px solid",
+              borderColor: "#404040 #fff #fff #404040",
+            }}
+          >
             {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
           </span>
           <button type="button" onClick={wallet.disconnect} style={btn}>
@@ -77,11 +101,28 @@ export default function WalletConnect({ wallet }: Props) {
           type="button"
           onClick={wallet.connect}
           disabled={wallet.connecting}
-          style={{ ...btn, background: wallet.connecting ? "#aaa" : "#c0c0c0" }}
+          style={{
+            ...btn,
+            background: wallet.connecting ? "#aaa" : "#c0c0c0",
+            cursor: wallet.connecting ? "wait" : "pointer",
+          }}
         >
           {wallet.connecting ? "Connecting..." : "Connect Wallet"}
         </button>
       )}
+
+      <div
+        style={{
+          padding: "2px 8px",
+          background: "#c0c0c0",
+          border: "1px solid",
+          borderColor: "#404040 #fff #fff #404040",
+          fontSize: 11,
+          fontFamily: "monospace",
+        }}
+      >
+        {time}
+      </div>
     </div>
   );
 }
